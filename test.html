@@ -1,0 +1,106 @@
+﻿<!DOCTYPE html>
+<html lang="tr">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hızlı Köprü Mobil v6.8</title>
+    <style>
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        .card { background: #1e1e1e; border-radius: 15px; padding: 20px; max-width: 400px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 15px; display: block; }
+        #display-area { background: #2a2a2a; padding: 15px; border-radius: 10px; margin: 15px 0; min-height: 80px; word-break: break-all; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 8px; }
+        #file-zone { display: none; }
+        .btn { border: none; padding: 12px; border-radius: 8px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
+        textarea { width: 100%; height: 80px; background: #333; color: white; border: 1px solid #444; border-radius: 10px; padding: 10px; box-sizing: border-box; }
+        #status { font-size: 12px; color: #888; margin-top: 8px; }
+    </style>
+</head>
+<body>
+    <div class="card">
+        <span id="room-tag" class="room-tag">ODA: BAĞLANILIYOR...</span>
+        <div id="display-area">
+            <div id="text-content">Bekleniyor...</div>
+            <img id="receivedImage" src="">
+            <div id="file-zone"><a id="download-link" style="color: #4CAF50; text-decoration: none; font-weight: bold;">📥 DOSYAYI İNDİR</a></div>
+        </div>
+        <button class="btn" style="background: #4CAF50;" onclick="handleAction()">Kopyala / Kaydet</button>
+        <hr style="border: 0.5px solid #333; margin: 20px 0;">
+        <textarea id="mobileInput" placeholder="PC'ye mesaj gönder..."></textarea>
+        <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metin Gönder</button>
+        <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
+        <button class="btn" style="background: #e74c3c;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Resim Gönder</button>
+        <div id="status"></div>
+    </div>
+
+    <script>
+        let roomID = prompt("Oda İsmi:", "genel") || "genel";
+        roomID = roomID.toLowerCase().trim();
+        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
+        let lastTimestamp = 0;
+        document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
+
+        function fetchData() {
+            fetch(dbUrl).then(res => res.json()).then(data => {
+                if (!data || data.timestamp <= lastTimestamp) return;
+                lastTimestamp = data.timestamp;
+                document.getElementById('text-content').style.display = 'none';
+                document.getElementById('receivedImage').style.display = 'none';
+                document.getElementById('file-zone').style.display = 'none';
+
+                if (data.type === 'image') {
+                    document.getElementById('receivedImage').src = data.content;
+                    document.getElementById('receivedImage').style.display = 'block';
+                } else if (data.type === 'file') {
+                    const link = document.getElementById('download-link');
+                    link.href = data.content;
+                    link.download = data.filename || "dosya";
+                    document.getElementById('file-zone').style.display = 'block';
+                } else {
+                    document.getElementById('text-content').innerText = data.content;
+                    document.getElementById('text-content').style.display = 'block';
+                }
+            });
+        }
+
+        function sendText() {
+            const val = document.getElementById('mobileInput').value;
+            if(!val) return;
+            const payload = { content: val, timestamp: Date.now()/1000, type: 'text' };
+            fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => {
+                document.getElementById('mobileInput').value = "";
+                showStatus("Gönderildi!");
+            });
+        }
+
+        function uploadFile(input) {
+            const file = input.files[0];
+            if(!file) return;
+            showStatus("Yükleniyor...");
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const payload = {
+                    content: e.target.result,
+                    filename: file.name,
+                    timestamp: Date.now()/1000,
+                    type: file.type.startsWith('image/') ? 'image' : 'file'
+                };
+                fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => showStatus("Dosya İletildi!"));
+            };
+            reader.readAsDataURL(file);
+        }
+
+        function handleAction() {
+            const txt = document.getElementById('text-content').innerText;
+            if(document.getElementById('text-content').style.display !== 'none') {
+                navigator.clipboard.writeText(txt);
+                showStatus("Kopyalandı!");
+            } else { document.getElementById('download-link').click(); }
+        }
+
+        function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(() => document.getElementById('status').innerText="", 3000); }
+        setInterval(fetchData, 2000);
+        fetchData();
+    </script>
+</body>
+</html>
