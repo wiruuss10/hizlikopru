@@ -3,17 +3,17 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü Mobil v6.9</title>
+    <title>Hızlı Köprü Mobil</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
-        .card { background: #1e1e1e; border-radius: 15px; padding: 20px; max-width: 400px; margin: auto; box-shadow: 0 4px 15px rgba(0,0,0,0.5); }
-        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 15px; display: block; font-size: 18px; }
-        #display-area { background: #2a2a2a; padding: 15px; border-radius: 10px; margin: 15px 0; min-height: 100px; display: flex; flex-direction: column; justify-content: center; }
-        #receivedImage { max-width: 100%; display: none; border-radius: 8px; margin-top: 10px; }
-        #file-zone { display: none; margin-top: 10px; }
-        .btn { border: none; padding: 14px; border-radius: 10px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; font-size: 15px; }
-        textarea { width: 100%; height: 90px; background: #333; color: white; border: 1px solid #444; border-radius: 10px; padding: 12px; box-sizing: border-box; font-size: 14px; }
-        #status { font-size: 13px; color: #00bcd4; margin-top: 10px; height: 18px; }
+        body { font-family: -apple-system, system-ui, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; letter-spacing: 1px; }
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 110px; border: 1px dashed #444; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
+        #file-zone { display: none; margin-top: 12px; }
+        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 12px; font-size: 16px; }
+        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
+        #status { font-size: 13px; color: #00bcd4; margin-top: 12px; height: 20px; }
     </style>
 </head>
 <body>
@@ -21,32 +21,31 @@
         <span id="room-tag" class="room-tag">BAĞLANILIYOR...</span>
         
         <div id="display-area">
-            <div id="text-content">PC'den veri bekleniyor...</div>
+            <div id="text-content">Bekleniyor...</div>
             <img id="receivedImage" src="">
             <div id="file-zone">
-                <a id="download-link" style="background: #2e7d32; color: white; padding: 10px; display: block; border-radius: 5px; text-decoration: none;">📥 DOSYAYI İNDİR</a>
+                <a id="download-link" style="background: #2e7d32; color: white; padding: 12px; display: block; border-radius: 8px; text-decoration: none;">📥 DOSYAYI İNDİR</a>
             </div>
         </div>
 
-        <button class="btn" style="background: #444;" onclick="handleAction()">Kopyala / Kaydet</button>
-        <hr style="border: 0.5px solid #333; margin: 20px 0;">
+        <button class="btn" style="background: #333;" onclick="handleAction()">Kopyala / Kaydet</button>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
         
-        <textarea id="mobileInput" placeholder="PC'ye mesaj gönder..."></textarea>
+        <textarea id="mobileInput" placeholder="Mesajınızı buraya yazın..."></textarea>
         <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
         
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
-        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Fotoğraf / Dosya Gönder</button>
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Fotoğraf / Dosya Seç</button>
         
         <div id="status"></div>
     </div>
 
     <script>
-        // URL'den 'room' parametresini oku (Karekod için)
         const urlParams = new URLSearchParams(window.location.search);
         let roomID = urlParams.get('room');
 
         if (!roomID) {
-            roomID = prompt("Oda İsmini Girin:", "genel") || "genel";
+            roomID = prompt("Oda İsmi:", "genel") || "genel";
         }
 
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
@@ -70,7 +69,7 @@
                 } else if (data.type === 'file') {
                     const link = document.getElementById('download-link');
                     link.href = data.content;
-                    link.download = data.filename || "dosya";
+                    link.download = data.filename || "indirilen_dosya";
                     document.getElementById('file-zone').style.display = 'block';
                 } else {
                     document.getElementById('text-content').innerText = data.content;
@@ -85,14 +84,14 @@
             const payload = { content: val, timestamp: Date.now()/1000, type: 'text' };
             fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => {
                 document.getElementById('mobileInput').value = "";
-                showStatus("Metin Gönderildi!");
+                showStatus("Gönderildi!");
             });
         }
 
         function uploadFile(input) {
             const file = input.files[0];
             if(!file) return;
-            showStatus("Dosya Hazırlanıyor...");
+            showStatus("Yükleniyor...");
             const reader = new FileReader();
             reader.onload = function(e) {
                 const payload = {
@@ -101,17 +100,16 @@
                     timestamp: Date.now()/1000,
                     type: file.type.startsWith('image/') ? 'image' : 'file'
                 };
-                showStatus("Yükleniyor...");
-                fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => showStatus("Başarıyla Gönderildi!"));
+                fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => showStatus("Dosya İletildi!"));
             };
             reader.readAsDataURL(file);
         }
 
         function handleAction() {
             const txt = document.getElementById('text-content').innerText;
-            if(document.getElementById('text-content').style.display !== 'none' && txt !== "PC'den veri bekleniyor...") {
+            if(document.getElementById('text-content').style.display !== 'none' && txt !== "Bekleniyor...") {
                 navigator.clipboard.writeText(txt);
-                showStatus("Pano'ya Kopyalandı!");
+                showStatus("Kopyalandı!");
             } else if (document.getElementById('file-zone').style.display !== 'none') {
                 document.getElementById('download-link').click();
             }
