@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü Mobil v6.9.4</title>
+    <title>Hızlı Köprü Mobil v6.9.7</title>
     <style>
         body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
         .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
@@ -18,7 +18,7 @@
 </head>
 <body>
     <div class="card">
-        <span id="room-tag" class="room-tag">BAĞLANILIYOR...</span>
+        <span id="room-tag" class="room-tag">YÜKLENİYOR...</span>
         <div id="display-area">
             <div id="text-content">PC'den veri bekleniyor...</div>
             <img id="receivedImage" src="">
@@ -31,14 +31,20 @@
         <textarea id="mobileInput" placeholder="Mesajınızı yazın..."></textarea>
         <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
-        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya Seç</button>
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Foto Seç</button>
         <div id="status"></div>
     </div>
 
     <script>
+        // --- AKILLI ODA BAĞLANTISI ---
         const urlParams = new URLSearchParams(window.location.search);
-        let roomID = urlParams.get('room');
-        if (!roomID) roomID = prompt("Oda İsmi:", "genel") || "genel";
+        let roomID = urlParams.get('room'); // QR'dan gelen oda bilgisini al
+
+        // Eğer QR'da oda bilgisi yoksa elle sor
+        if (!roomID) {
+            roomID = prompt("Oda İsmi Girin:", "genel") || "genel";
+        }
+
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
         let lastHash = "";
@@ -67,7 +73,7 @@
                     document.getElementById('text-content').innerText = data.content;
                     document.getElementById('text-content').style.display = 'block';
                 }
-            });
+            }).catch(() => {});
         }
 
         function sendText() {
