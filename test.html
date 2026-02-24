@@ -5,10 +5,10 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Hızlı Köprü Mobil</title>
     <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
         .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
-        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; letter-spacing: 1px; }
-        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 110px; border: 1px dashed #444; }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; }
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 100px; }
         #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
         #file-zone { display: none; margin-top: 12px; }
         .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 12px; font-size: 16px; }
@@ -19,57 +19,45 @@
 <body>
     <div class="card">
         <span id="room-tag" class="room-tag">BAĞLANILIYOR...</span>
-        
         <div id="display-area">
-            <div id="text-content">Bekleniyor...</div>
+            <div id="text-content">PC bekleniyor...</div>
             <img id="receivedImage" src="">
             <div id="file-zone">
                 <a id="download-link" style="background: #2e7d32; color: white; padding: 12px; display: block; border-radius: 8px; text-decoration: none;">📥 DOSYAYI İNDİR</a>
             </div>
         </div>
-
-        <button class="btn" style="background: #333;" onclick="handleAction()">Kopyala / Kaydet</button>
+        <button class="btn" style="background: #444;" onclick="handleAction()">Kopyala / Kaydet</button>
         <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
-        
-        <textarea id="mobileInput" placeholder="Mesajınızı buraya yazın..."></textarea>
+        <textarea id="mobileInput" placeholder="Mesajınızı yazın..."></textarea>
         <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
-        
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
         <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Fotoğraf / Dosya Seç</button>
-        
         <div id="status"></div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         let roomID = urlParams.get('room');
-
-        if (!roomID) {
-            roomID = prompt("Oda İsmi:", "genel") || "genel";
-        }
-
+        if (!roomID) roomID = prompt("Oda İsmi:", "genel") || "genel";
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
         let lastTimestamp = 0;
-
         document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
         function fetchData() {
             fetch(dbUrl).then(res => res.json()).then(data => {
                 if (!data || data.timestamp <= lastTimestamp) return;
                 lastTimestamp = data.timestamp;
-
                 document.getElementById('text-content').style.display = 'none';
                 document.getElementById('receivedImage').style.display = 'none';
                 document.getElementById('file-zone').style.display = 'none';
-
                 if (data.type === 'image') {
                     document.getElementById('receivedImage').src = data.content;
                     document.getElementById('receivedImage').style.display = 'block';
                 } else if (data.type === 'file') {
                     const link = document.getElementById('download-link');
                     link.href = data.content;
-                    link.download = data.filename || "indirilen_dosya";
+                    link.download = data.filename || "dosya";
                     document.getElementById('file-zone').style.display = 'block';
                 } else {
                     document.getElementById('text-content').innerText = data.content;
@@ -81,11 +69,8 @@
         function sendText() {
             const val = document.getElementById('mobileInput').value;
             if(!val) return;
-            const payload = { content: val, timestamp: Date.now()/1000, type: 'text' };
-            fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => {
-                document.getElementById('mobileInput').value = "";
-                showStatus("Gönderildi!");
-            });
+            fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: val, timestamp: Date.now()/1000, type: 'text' }) })
+                .then(() => { document.getElementById('mobileInput').value = ""; showStatus("Gönderildi!"); });
         }
 
         function uploadFile(input) {
@@ -94,12 +79,7 @@
             showStatus("Yükleniyor...");
             const reader = new FileReader();
             reader.onload = function(e) {
-                const payload = {
-                    content: e.target.result,
-                    filename: file.name,
-                    timestamp: Date.now()/1000,
-                    type: file.type.startsWith('image/') ? 'image' : 'file'
-                };
+                const payload = { content: e.target.result, filename: file.name, timestamp: Date.now()/1000, type: file.type.startsWith('image/') ? 'image' : 'file' };
                 fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) }).then(() => showStatus("Dosya İletildi!"));
             };
             reader.readAsDataURL(file);
@@ -107,19 +87,14 @@
 
         function handleAction() {
             const txt = document.getElementById('text-content').innerText;
-            if(document.getElementById('text-content').style.display !== 'none' && txt !== "Bekleniyor...") {
-                navigator.clipboard.writeText(txt);
-                showStatus("Kopyalandı!");
+            if(document.getElementById('text-content').style.display !== 'none' && txt !== "PC bekleniyor...") {
+                navigator.clipboard.writeText(txt); showStatus("Kopyalandı!");
             } else if (document.getElementById('file-zone').style.display !== 'none') {
                 document.getElementById('download-link').click();
             }
         }
 
-        function showStatus(m) { 
-            document.getElementById('status').innerText = m; 
-            setTimeout(() => document.getElementById('status').innerText="", 3000); 
-        }
-
+        function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(() => document.getElementById('status').innerText="", 3000); }
         setInterval(fetchData, 2000);
         fetchData();
     </script>
