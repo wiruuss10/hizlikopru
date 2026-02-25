@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü Mobil v7.0.4</title>
+    <title>Hızlı Köprü Mobil v7.0.4 Pro</title>
     <style>
         body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
         .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
@@ -13,28 +13,28 @@
         #file-zone { display: none; margin-top: 12px; }
         .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; font-size: 16px; }
         textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
-        /* Yeni Liste Stili */
-        #history-list { margin-top: 25px; text-align: left; }
-        .history-item { background: #252525; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 4px solid #00bcd4; font-size: 14px; }
+        /* Geçmiş Listesi */
+        #history-list { margin-top: 30px; text-align: left; }
+        .history-item { background: #252525; padding: 10px; border-radius: 10px; margin-bottom: 8px; border-left: 3px solid #00bcd4; font-size: 13px; }
         #status { font-size: 13px; color: #00bcd4; margin-top: 12px; height: 20px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <span id="room-tag" class="room-tag">ODA BAĞLANILIYOR...</span>
+        <span id="room-tag" class="room-tag">BAĞLANILIYOR...</span>
         
         <div id="display-area">
             <div id="text-content">PC'den veri bekleniyor...</div>
             <img id="receivedImage">
             <div id="file-zone">
-                <a id="download-link" style="background:#2e7d32; color:white; padding:12px; display:block; border-radius:8px; text-decoration:none; font-weight:bold;">📥 SON DOSYAYI İNDİR</a>
+                <a id="download-link" style="background:#2e7d32; color:white; padding:12px; display:block; border-radius:8px; text-decoration:none;">📥 DOSYAYI İNDİR</a>
             </div>
         </div>
 
         <button class="btn" style="background:#444;" onclick="handleCopy()">Kopyala / Kaydet</button>
         <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
         
-        <textarea id="mobileInput" placeholder="PC'ye mesaj gönder..."></textarea>
+        <textarea id="mobileInput" placeholder="PC'ye bir şeyler yaz..."></textarea>
         <button class="btn" style="background:#00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
         
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
@@ -48,60 +48,63 @@
         const urlParams = new URLSearchParams(window.location.search);
         let roomID = urlParams.get('room') || prompt("Oda İsmi:");
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
+        const rootUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}`;
+        let lastTs = 0;
         let seenIds = new Set();
         document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
-        function fetchData() {
-            fetch(`${dbUrl}?limitToLast=10&nocache=${Date.now()}`)
+        function fetchUpdates() {
+            // Anlık Veri (Büyük Kutu İçin)
+            fetch(`${rootUrl}/last.json?nocache=${Date.now()}`)
+            .then(res => res.json())
+            .then(data => {
+                if (data && data.sender === 'PC' && data.timestamp > lastTs) {
+                    lastTs = data.timestamp;
+                    updateUI(data);
+                }
+            });
+
+            // Geçmiş Veri (Liste İçin)
+            fetch(`${rootUrl}/history.json?limitToLast=10`)
             .then(res => res.json())
             .then(data => {
                 if (!data) return;
-                // Verileri ters çevirip (yeniden eskiye) işle
                 Object.keys(data).reverse().forEach(id => {
                     if (!seenIds.has(id)) {
                         seenIds.add(id);
-                        if (data[id].sender === 'PC') {
-                            updateMainBox(data[id]); // Üstteki büyük kutu
-                            addToHistory(data[id]); // Alttaki liste
-                        }
+                        if (data[id].sender === 'PC') addToHistory(data[id]);
                     }
                 });
             });
         }
 
-        function updateMainBox(data) {
+        function updateUI(data) {
             const txt = document.getElementById('text-content');
             const img = document.getElementById('receivedImage');
             const fz = document.getElementById('file-zone');
             txt.style.display = 'none'; img.style.display = 'none'; fz.style.display = 'none';
-
-            if (data.type === 'image') {
-                img.src = data.content; img.style.display = 'block';
-            } else if (data.type === 'file') {
-                document.getElementById('download-link').href = data.content;
+            if (data.type === 'image') { img.src = data.content; img.style.display = 'block'; }
+            else if (data.type === 'file') { 
+                document.getElementById('download-link').href = data.content; 
                 document.getElementById('download-link').download = data.filename;
-                fz.style.display = 'block';
-                txt.innerText = "Dosya: " + data.filename; txt.style.display = 'block';
-            } else {
-                txt.innerText = data.content; txt.style.display = 'block';
-            }
+                fz.style.display = 'block'; txt.innerText = data.filename; txt.style.display = 'block';
+            } else { txt.innerText = data.content; txt.style.display = 'block'; }
+            showStatus("Yeni Veri!");
         }
 
         function addToHistory(data) {
             const list = document.getElementById('history-list');
-            const div = document.createElement('div');
-            div.className = 'history-item';
-            if(data.type === 'text') div.innerText = "📝 " + data.content.substring(0, 100);
-            else if(data.type === 'image') div.innerHTML = "📸 Resim Alındı";
-            else div.innerHTML = "📁 " + data.filename;
-            list.prepend(div); // En başa ekle
+            const item = document.createElement('div');
+            item.className = 'history-item';
+            item.innerText = (data.type === 'text' ? "📝 " : "📁 ") + (data.filename || data.content.substring(0, 30));
+            list.prepend(item);
         }
 
         function sendText() {
             const val = document.getElementById('mobileInput').value;
             if(!val) return;
-            fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: val, sender: 'WEB', type: 'text', timestamp: Date.now() }) })
+            const payload = { content: val, sender: 'WEB', type: 'text', timestamp: Date.now()/1000 };
+            fetch(`${rootUrl}/last.json`, { method: 'PUT', body: JSON.stringify(payload) })
             .then(() => { document.getElementById('mobileInput').value = ""; showStatus("Gönderildi!"); });
         }
 
@@ -109,8 +112,9 @@
             const file = input.files[0];
             const reader = new FileReader();
             reader.onload = (e) => {
-                fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: e.target.result, filename: file.name, sender: 'WEB', type: 'file', timestamp: Date.now() }) })
-                .then(() => showStatus("Dosya İletildi!"));
+                const payload = { content: e.target.result, filename: file.name, sender: 'WEB', type: 'file', timestamp: Date.now()/1000 };
+                fetch(`${rootUrl}/last.json`, { method: 'PUT', body: JSON.stringify(payload) })
+                .then(() => showStatus("İletildi!"));
             };
             reader.readAsDataURL(file);
         }
@@ -121,8 +125,7 @@
         }
 
         function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(()=>document.getElementById('status').innerText="", 3000); }
-        setInterval(fetchData, 2000);
-        fetchData();
+        setInterval(fetchUpdates, 2000);
     </script>
 </body>
 </html>
