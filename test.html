@@ -3,78 +3,145 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü Web v2.0</title>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-app.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/8.10.0/firebase-database.js"></script>
+    <title>Hızlı Köprü Mobil v7.0.4</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 20px; }
-        .container { max-width: 500px; margin: auto; }
-        .file-list { background: #1e1e1e; border-radius: 10px; padding: 15px; margin-top: 20px; text-align: left; max-height: 400px; overflow-y: auto; }
-        .file-item { border-bottom: 1px solid #333; padding: 10px; display: flex; justify-content: space-between; align-items: center; }
-        .btn-download { background: #27ae60; color: white; border: none; padding: 5px 15px; border-radius: 5px; cursor: pointer; text-decoration: none; font-size: 12px; }
-        .text-content { font-size: 14px; color: #3498db; word-break: break-all; margin-right: 10px; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; }
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 100px; border: 1px dashed #444; display: flex; flex-direction: column; justify-content: center; align-items: center; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
+        #file-zone { display: none; margin-top: 12px; width: 100%; }
+        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 12px; font-size: 16px; transition: 0.3s; }
+        .btn:active { transform: scale(0.98); }
+        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
+        #status { font-size: 13px; color: #00bcd4; margin-top: 12px; height: 20px; font-weight: bold; }
+        #text-content { word-break: break-all; white-space: pre-wrap; }
     </style>
 </head>
 <body>
-    <div class="container">
-        <h2>🚀 Hızlı Köprü Web</h2>
-        <p id="room-label">Oda: Bekleniyor...</p>
-        
-        <div class="file-list" id="output-list">
-            <p style="text-align:center; color:#666;">Gelen dosyalar burada listelenecek...</p>
+    <div class="card">
+        <span id="room-tag" class="room-tag">YÜKLENİYOR...</span>
+        <div id="display-area">
+            <div id="text-content">PC'den veri bekleniyor...</div>
+            <img id="receivedImage" src="">
+            <div id="file-zone">
+                <a id="download-link" style="background: #2e7d32; color: white; padding: 15px; display: block; border-radius: 12px; text-decoration: none; font-weight: bold;">📥 DOSYAYI İNDİR</a>
+            </div>
         </div>
+        <button class="btn" style="background: #444;" onclick="handleAction()">Kopyala / Kaydet</button>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
+        <textarea id="mobileInput" placeholder="PC'ye mesaj gönderin..."></textarea>
+        <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
+        <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Foto Seç</button>
+        <div id="status"></div>
     </div>
 
     <script>
-        // --- FIREBASE AYARLARI (Kendi bilgilerini kontrol et) ---
-        const firebaseConfig = {
-            databaseURL: "https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/"
-        };
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-
-        // URL'den Oda Adını Al
         const urlParams = new URLSearchParams(window.location.search);
-        const roomId = urlParams.get('room');
-        
-        if (roomId) {
-            document.getElementById('room-label').innerText = "ODA: " + roomId.toUpperCase();
-            
-            // MESAJLARI DİNLE (Liste Mantığı)
-            const messagesRef = database.ref(roomId + '/messages');
-            
-            messagesRef.on('child_added', (snapshot) => {
-                const data = snapshot.val();
-                if (data.sender === 'PC') {
-                    addToFileList(data);
+        let roomID = urlParams.get('room');
+
+        if (!roomID) {
+            roomID = prompt("Oda İsmi Girin:", "genel") || "genel";
+        }
+
+        roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+        // PC'deki db_url ile tam uyumlu hale getirildi
+        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
+        let lastTimestamp = 0;
+        document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
+
+        function fetchData() {
+            // nocache parametresi tarayıcının eski veriyi göstermesini engeller
+            fetch(`${dbUrl}?nocache=${Date.now()}`)
+            .then(res => res.json())
+            .then(data => {
+                if (!data || !data.timestamp) return;
+                
+                // Eğer veri bizden (WEB) gelmişse veya eskiyse işleme
+                if (data.sender === 'WEB' || data.timestamp <= lastTimestamp) return;
+                
+                lastTimestamp = data.timestamp;
+                
+                const textElem = document.getElementById('text-content');
+                const imgElem = document.getElementById('receivedImage');
+                const fileElem = document.getElementById('file-zone');
+                const downloadLink = document.getElementById('download-link');
+
+                // Önce her şeyi gizle
+                textElem.style.display = 'none';
+                imgElem.style.display = 'none';
+                fileElem.style.display = 'none';
+
+                if (data.type === 'image') {
+                    imgElem.src = data.content;
+                    imgElem.style.display = 'block';
+                } else if (data.type === 'file') {
+                    downloadLink.href = data.content;
+                    downloadLink.download = data.filename || "indirilen_dosya";
+                    downloadLink.innerText = `📥 ${data.filename || "DOSYAYI İNDİR"}`;
+                    fileElem.style.display = 'block';
+                } else {
+                    textElem.innerText = data.content;
+                    textElem.style.display = 'block';
                 }
+                showStatus("Yeni Veri Alındı!");
+            }).catch(err => console.error("Hata:", err));
+        }
+
+        function sendText() {
+            const val = document.getElementById('mobileInput').value;
+            if(!val) return;
+            const now = Date.now() / 1000;
+            lastTimestamp = now;
+            fetch(dbUrl, { 
+                method: 'PUT', 
+                body: JSON.stringify({ content: val, timestamp: now, type: 'text', sender: 'WEB' }) 
+            }).then(() => { 
+                document.getElementById('mobileInput').value = ""; 
+                showStatus("Metin Gönderildi!"); 
             });
         }
 
-        function addToFileList(data) {
-            const list = document.getElementById('output-list');
-            // Eğer ilk dosya geldiyse "Bekleniyor" yazısını sil
-            if (list.innerHTML.includes("listelenecek")) list.innerHTML = "";
+        function uploadFile(input) {
+            const file = input.files[0];
+            if(!file) return;
+            showStatus("Yükleniyor...");
+            const reader = new FileReader();
+            reader.onload = function(e) {
+                const now = Date.now() / 1000;
+                lastTimestamp = now;
+                const payload = { 
+                    content: e.target.result, 
+                    filename: file.name, 
+                    timestamp: now, 
+                    type: file.type.startsWith('image/') ? 'image' : 'file', 
+                    sender: 'WEB' 
+                };
+                fetch(dbUrl, { method: 'PUT', body: JSON.stringify(payload) })
+                    .then(() => showStatus("Dosya Gönderildi!"));
+            };
+            reader.readAsDataURL(file);
+        }
 
-            const item = document.createElement('div');
-            item.className = 'file-item';
-
-            if (data.type === 'text') {
-                item.innerHTML = `<span class="text-content">📝 ${data.content.substring(0, 50)}...</span>
-                                  <button class="btn-download" onclick="copyText('${escape(data.content)}')">Kopyala</button>`;
-            } else {
-                item.innerHTML = `<span class="text-content">📦 ${data.filename}</span>
-                                  <a href="${data.content}" download="${data.filename}" class="btn-download">İndir</a>`;
+        function handleAction() {
+            const textElem = document.getElementById('text-content');
+            if(textElem.style.display !== 'none' && textElem.innerText !== "PC'den veri bekleniyor...") {
+                navigator.clipboard.writeText(textElem.innerText); 
+                showStatus("Kopyalandı!");
+            } else if (document.getElementById('file-zone').style.display !== 'none') {
+                document.getElementById('download-link').click();
             }
-
-            list.insertBefore(item, list.firstChild); // En yeniyi en üste koy
         }
 
-        function copyText(txt) {
-            const decoded = unescape(txt);
-            navigator.clipboard.writeText(decoded);
-            alert("Metin kopyalandı!");
+        function showStatus(m) { 
+            document.getElementById('status').innerText = m; 
+            setTimeout(() => document.getElementById('status').innerText="", 3000); 
         }
+
+        // Dinleme hızını 1 saniyeye düşürdük (daha seri)
+        setInterval(fetchData, 1000);
+        fetchData();
     </script>
 </body>
 </html>
