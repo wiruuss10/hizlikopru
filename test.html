@@ -3,74 +3,113 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü Liste</title>
+    <title>Hızlı Köprü Mobil v7.0.4</title>
     <style>
         body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
         .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
         .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; }
-        #history-list { margin-top: 15px; display: flex; flex-direction: column; gap: 10px; }
-        .msg-item { background: #2a2a2a; padding: 15px; border-radius: 12px; border-left: 5px solid #00bcd4; text-align: left; }
-        .btn { border: none; padding: 12px; border-radius: 10px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; }
-        .download-link { background: #2e7d32; color: white; padding: 10px; display: block; border-radius: 8px; text-decoration: none; text-align: center; font-size: 14px; margin-top: 5px; }
+        /* Orijinal Alıcı Kutusu */
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 100px; border: 1px dashed #444; }
+        #text-content { word-break: break-all; font-size: 15px; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
+        #file-zone { display: none; margin-top: 12px; }
+        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 12px; font-size: 16px; }
+        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
+        #status { font-size: 13px; color: #00bcd4; margin-top: 12px; height: 20px; }
+        .history-mini { font-size: 11px; color: #666; margin-top: 15px; text-align: left; max-height: 100px; overflow-y: auto; }
     </style>
 </head>
 <body>
     <div class="card">
         <span id="room-tag" class="room-tag">ODA BAĞLANILIYOR...</span>
-        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 MOBİLDEN DOSYA GÖNDER</button>
+        
+        <div id="display-area">
+            <div id="text-content">PC'den veri bekleniyor...</div>
+            <img id="receivedImage" src="">
+            <div id="file-zone">
+                <a id="download-link" style="background: #2e7d32; color: white; padding: 12px; display: block; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 DOSYAYI İNDİR</a>
+            </div>
+        </div>
+        <button class="btn" style="background: #444;" onclick="handleCopy()">Kopyala / Kaydet</button>
+
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
+
+        <textarea id="mobileInput" placeholder="PC'ye mesaj gönder..."></textarea>
+        <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
-        <div id="history-list"></div>
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Foto Seç</button>
+        
+        <div id="status"></div>
+        <div id="history-list" class="history-mini"></div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
         let roomID = urlParams.get('room') || prompt("Oda İsmi:");
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        
-        const messagesUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}/messages.json`;
+        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}/messages.json`;
         let processedIds = new Set();
         document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
         function fetchData() {
-            fetch(`${messagesUrl}?limitToLast=10&nocache=${Date.now()}`)
+            fetch(`${dbUrl}?limitToLast=5&nocache=${Date.now()}`)
             .then(res => res.json())
             .then(data => {
                 if (!data) return;
                 Object.keys(data).forEach(id => {
-                    if (!processedIds.has(id) && data[id].sender === 'PC') {
+                    if (!processedIds.has(id)) {
                         processedIds.add(id);
-                        renderMessage(data[id]);
+                        if (data[id].sender === 'PC') {
+                            updateDisplay(data[id]);
+                        }
                     }
                 });
             });
         }
 
-        function renderMessage(data) {
-            const list = document.getElementById('history-list');
-            const item = document.createElement('div');
-            item.className = 'msg-item';
+        function updateDisplay(data) {
+            const txt = document.getElementById('text-content');
+            const img = document.getElementById('receivedImage');
+            const fz = document.getElementById('file-zone');
             
+            txt.style.display = 'none'; img.style.display = 'none'; fz.style.display = 'none';
+
             if (data.type === 'image') {
-                item.innerHTML = `<img src="${data.content}" style="max-width:100%; border-radius:8px;">`;
+                img.src = data.content; img.style.display = 'block';
             } else if (data.type === 'file') {
-                item.innerHTML = `<div>📦 <b>${data.filename}</b></div><a href="${data.content}" download="${data.filename}" class="download-link">📥 İNDİR</a>`;
+                document.getElementById('download-link').href = data.content;
+                document.getElementById('download-link').download = data.filename;
+                fz.style.display = 'block';
+                txt.innerText = "Dosya Geldi: " + data.filename; txt.style.display = 'block';
             } else {
-                item.innerHTML = `<div>${data.content}</div>`;
+                txt.innerText = data.content; txt.style.display = 'block';
             }
-            list.insertBefore(item, list.firstChild);
+            showStatus("Veri Alındı!");
+        }
+
+        function sendText() {
+            const val = document.getElementById('mobileInput').value;
+            if(!val) return;
+            fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: val, timestamp: Date.now()/1000, type: 'text', sender: 'WEB' }) })
+            .then(() => { document.getElementById('mobileInput').value = ""; showStatus("Gönderildi!"); });
         }
 
         function uploadFile(input) {
             const file = input.files[0];
             const reader = new FileReader();
             reader.onload = (e) => {
-                fetch(messagesUrl, {
-                    method: 'POST',
-                    body: JSON.stringify({ content: e.target.result, filename: file.name, timestamp: Date.now()/1000, type: 'file', sender: 'WEB' })
-                }).then(() => alert("Gönderildi!"));
+                fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: e.target.result, filename: file.name, timestamp: Date.now()/1000, type: 'file', sender: 'WEB' }) })
+                .then(() => showStatus("Dosya İletildi!"));
             };
             reader.readAsDataURL(file);
         }
+
+        function handleCopy() {
+            const txt = document.getElementById('text-content').innerText;
+            navigator.clipboard.writeText(txt); showStatus("Kopyalandı!");
+        }
+
+        function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(()=>document.getElementById('status').innerText="", 3000); }
 
         setInterval(fetchData, 2000);
         fetchData();
