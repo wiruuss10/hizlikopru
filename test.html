@@ -3,40 +3,47 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü v7.0.5</title>
+    <title>Hızlı Köprü Mobil v7.0.4</title>
     <style>
-        body { font-family: sans-serif; background: #121212; color: white; padding: 15px; text-align: center; }
-        .card { background: #1e1e1e; border-radius: 20px; padding: 20px; max-width: 450px; margin: auto; border: 1px solid #333; }
-        #latest-box { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; border: 1px dashed #00bcd4; min-height: 50px; }
-        .history-list { text-align: left; margin-top: 20px; max-height: 300px; overflow-y: auto; }
-        .item { background: #252525; padding: 10px; margin-bottom: 5px; border-radius: 8px; border-left: 4px solid #00bcd4; font-size: 14px; }
-        textarea { width: 100%; height: 80px; background: #333; color: white; border-radius: 10px; padding: 10px; border: none; }
-        .btn { border: none; padding: 15px; border-radius: 12px; color: white; width: 100%; margin-top: 10px; cursor: pointer; font-weight: bold; }
+        body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
+        .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; }
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 100px; border: 1px dashed #444; overflow: hidden; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
+        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 10px; font-size: 16px; }
+        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
+        .history { text-align: left; margin-top: 20px; font-size: 13px; color: #aaa; max-height: 150px; overflow-y: auto; }
+        .h-item { border-bottom: 1px solid #333; padding: 5px 0; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h2 id="room-name">ODA BAĞLANILIYOR...</h2>
-        <div id="latest-box">En son veri burada görünecek...</div>
-        
-        <textarea id="msgInput" placeholder="PC'ye mesaj gönder..."></textarea>
-        <button class="btn" style="background: #00bcd4;" onclick="sendText()">MESAJ GÖNDER</button>
-        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInp').click()">FOTO/DOSYA GÖNDER</button>
-        <input type="file" id="fileInp" style="display:none" onchange="sendFile(this)">
-
-        <div class="history-list" id="history">
+        <span id="room-tag" class="room-tag">BAĞLANILIYOR...</span>
+        <div id="display-area">
+            <div id="text-content">PC'den veri bekleniyor...</div>
+            <img id="receivedImage">
+            <div id="file-zone" style="display:none">
+                <a id="down-link" style="background:#2e7d32; color:white; padding:10px; display:block; border-radius:8px; text-decoration:none;">📥 DOSYAYI İNDİR</a>
             </div>
+        </div>
+        <button class="btn" style="background:#444;" onclick="copyMain()">Kopyala</button>
+        <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
+        <textarea id="mobileInp" placeholder="PC'ye mesaj gönder..."></textarea>
+        <button class="btn" style="background:#00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
+        <input type="file" id="fInp" style="display:none" onchange="uploadFile(this)">
+        <button class="btn" style="background:#c0392b;" onclick="document.getElementById('fInp').click()">📁 Dosya Seç</button>
+        <div class="history" id="hist"></div>
     </div>
 
     <script>
         const urlParams = new URLSearchParams(window.location.search);
-        let roomID = urlParams.get('room') || prompt("Oda İsmi:");
+        let roomID = urlParams.get('room') || prompt("Oda:");
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
         let seenIds = new Set();
-        document.getElementById('room-name').innerText = "ODA: " + roomID.toUpperCase();
+        document.getElementById('room-tag').innerText = "ODA: " + roomID.toUpperCase();
 
-        function checkCloud() {
+        function check() {
             fetch(`${dbUrl}?limitToLast=10`)
             .then(res => res.json())
             .then(data => {
@@ -46,37 +53,42 @@
                         seenIds.add(id);
                         const item = data[id];
                         if (item.sender === 'PC') {
-                            displayData(item);
-                            addToList(item);
+                            updateUI(item);
+                            addHist(item);
                         }
                     }
                 });
             });
         }
 
-        function displayData(data) {
-            const box = document.getElementById('latest-box');
-            if (data.type === 'text') box.innerText = data.content;
-            else if (data.type === 'image') box.innerHTML = `<img src="${data.content}" style="max-width:100%; border-radius:8px;">`;
-            else box.innerHTML = `<a href="${data.content}" download="${data.filename}" style="color:cyan">📥 ${data.filename}</a>`;
+        function updateUI(data) {
+            const txt = document.getElementById('text-content');
+            const img = document.getElementById('receivedImage');
+            const fz = document.getElementById('file-zone');
+            txt.style.display = 'none'; img.style.display = 'none'; fz.style.display = 'none';
+            if (data.type === 'image') { img.src = data.content; img.style.display = 'block'; }
+            else if (data.type === 'file') {
+                document.getElementById('down-link').href = data.content;
+                document.getElementById('down-link').download = data.filename;
+                fz.style.display = 'block'; txt.innerText = data.filename; txt.style.display = 'block';
+            } else { txt.innerText = data.content; txt.style.display = 'block'; }
         }
 
-        function addToList(data) {
-            const hist = document.getElementById('history');
+        function addHist(data) {
             const div = document.createElement('div');
-            div.className = 'item';
-            div.innerText = data.filename || data.content.substring(0, 50);
-            hist.prepend(div);
+            div.className = 'h-item';
+            div.innerText = ">> " + (data.filename || data.content.substring(0, 30));
+            document.getElementById('hist').prepend(div);
         }
 
         function sendText() {
-            const val = document.getElementById('msgInput').value;
-            if(!val) return;
-            fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: val, sender: 'WEB', type: 'text', timestamp: Date.now() }) })
-            .then(() => document.getElementById('msgInput').value = "");
+            const v = document.getElementById('mobileInp').value;
+            if(!v) return;
+            fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: v, sender: 'WEB', type: 'text', timestamp: Date.now() }) })
+            .then(() => document.getElementById('mobileInp').value = "");
         }
 
-        function sendFile(input) {
+        function uploadFile(input) {
             const reader = new FileReader();
             reader.onload = (e) => {
                 fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: e.target.result, filename: input.files[0].name, sender: 'WEB', type: 'file', timestamp: Date.now() }) });
@@ -84,7 +96,12 @@
             reader.readAsDataURL(input.files[0]);
         }
 
-        setInterval(checkCloud, 2000);
+        function copyMain() {
+            navigator.clipboard.writeText(document.getElementById('text-content').innerText);
+            alert("Kopyalandı");
+        }
+
+        setInterval(check, 2000);
     </script>
 </body>
 </html>
