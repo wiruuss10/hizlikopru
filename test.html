@@ -18,24 +18,20 @@
 </head>
 <body>
     <div class="card">
-        <span id="room-tag" class="room-tag">ODA: ...</span>
-        
+        <span id="room-tag" class="room-tag">ODA BAĞLANILIYOR...</span>
         <div id="display-area">
             <div id="text-content">PC'den veri bekleniyor...</div>
-            <img id="receivedImage">
+            <img id="receivedImage" src="">
             <div id="file-zone">
-                <a id="download-link" style="background:#2e7d32; color:white; padding:12px; display:block; border-radius:8px; text-decoration:none;">📥 DOSYAYI İNDİR</a>
+                <a id="download-link" style="background: #2e7d32; color: white; padding: 12px; display: block; border-radius: 8px; text-decoration: none; font-weight: bold;">📥 DOSYAYI İNDİR</a>
             </div>
         </div>
-
-        <button class="btn" style="background:#444;" onclick="handleCopy()">Kopyala / Kaydet</button>
-        <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
-        
+        <button class="btn" style="background: #444;" onclick="handleCopy()">Kopyala / Kaydet</button>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
         <textarea id="mobileInput" placeholder="PC'ye mesaj gönder..."></textarea>
-        <button class="btn" style="background:#00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
-        
+        <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
         <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
-        <button class="btn" style="background:#c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya Seç</button>
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Foto Seç</button>
         <div id="status"></div>
     </div>
 
@@ -44,25 +40,23 @@
         let roomID = urlParams.get('room') || prompt("Oda İsmi:");
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
         
+        // PC ile aynı adres: Oda adı direkt kök dizinde
         const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
-        let lastHash = "";
+        let lastTimestamp = "";
         document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
         function fetchData() {
             fetch(dbUrl + "?nocache=" + Date.now())
             .then(res => res.json())
             .then(data => {
-                if (data && data.sender === 'PC') {
-                    const currentHash = data.timestamp;
-                    if (currentHash !== lastHash) {
-                        lastHash = currentHash;
-                        updateDisplay(data);
-                    }
+                if (data && data.sender === 'PC' && data.timestamp !== lastTimestamp) {
+                    lastTimestamp = data.timestamp;
+                    updateUI(data);
                 }
             });
         }
 
-        function updateDisplay(data) {
+        function updateUI(data) {
             const txt = document.getElementById('text-content');
             const img = document.getElementById('receivedImage');
             const fz = document.getElementById('file-zone');
@@ -74,7 +68,7 @@
                 document.getElementById('download-link').href = data.content;
                 document.getElementById('download-link').download = data.filename;
                 fz.style.display = 'block';
-                txt.innerText = "Dosya: " + data.filename; txt.style.display = 'block';
+                txt.innerText = "Dosya Geldi: " + data.filename; txt.style.display = 'block';
             } else {
                 txt.innerText = data.content; txt.style.display = 'block';
             }
@@ -84,7 +78,7 @@
         function sendText() {
             const val = document.getElementById('mobileInput').value;
             if(!val) return;
-            fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: val, sender: 'WEB', type: 'text', timestamp: Date.now() }) })
+            fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: val, sender: 'WEB', type: 'text', timestamp: Date.now().toString() }) })
             .then(() => { document.getElementById('mobileInput').value = ""; showStatus("Gönderildi!"); });
         }
 
@@ -92,7 +86,7 @@
             const file = input.files[0];
             const reader = new FileReader();
             reader.onload = (e) => {
-                fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: e.target.result, filename: file.name, sender: 'WEB', type: 'file', timestamp: Date.now() }) })
+                fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: e.target.result, filename: file.name, sender: 'WEB', type: 'file', timestamp: Date.now().toString() }) })
                 .then(() => showStatus("Dosya İletildi!"));
             };
             reader.readAsDataURL(file);
@@ -105,6 +99,7 @@
 
         function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(()=>document.getElementById('status').innerText="", 3000); }
         setInterval(fetchData, 2000);
+        fetchData();
     </script>
 </body>
 </html>
