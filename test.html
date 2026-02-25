@@ -18,7 +18,7 @@
 </head>
 <body>
     <div class="card">
-        <span id="room-tag" class="room-tag">ODA BAĞLANILIYOR...</span>
+        <span id="room-tag" class="room-tag">ODA: ...</span>
         
         <div id="display-area">
             <div id="text-content">PC'den veri bekleniyor...</div>
@@ -43,12 +43,13 @@
         const urlParams = new URLSearchParams(window.location.search);
         let roomID = urlParams.get('room') || prompt("Oda İsmi:");
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        // PC ile aynı yol: /messages.json
+        // PC ile adresleri eşitledik
         const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}/messages.json`;
         let lastId = null;
         document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
         function fetchData() {
+            // Son 1 mesajı çek
             fetch(`${dbUrl}?limitToLast=1&nocache=${Date.now()}`)
             .then(res => res.json())
             .then(data => {
@@ -56,6 +57,7 @@
                 const id = Object.keys(data)[0];
                 if (id !== lastId) {
                     lastId = id;
+                    // Sadece PC'den gelenleri göster
                     if (data[id].sender === 'PC') {
                         updateUI(data[id]);
                     }
@@ -71,7 +73,7 @@
 
             if (data.type === 'image') {
                 img.src = data.content; img.style.display = 'block';
-                txt.innerText = "[Resim Alındı]"; txt.style.display = 'block';
+                txt.innerText = "[Görüntü]"; txt.style.display = 'block';
             } else if (data.type === 'file') {
                 document.getElementById('download-link').href = data.content;
                 document.getElementById('download-link').download = data.filename;
@@ -102,7 +104,9 @@
 
         function handleCopy() {
             const t = document.getElementById('text-content').innerText;
-            navigator.clipboard.writeText(t); showStatus("Kopyalandı!");
+            if(t !== "PC'den veri bekleniyor...") {
+                navigator.clipboard.writeText(t); showStatus("Kopyalandı!");
+            }
         }
 
         function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(()=>document.getElementById('status').innerText="", 3000); }
