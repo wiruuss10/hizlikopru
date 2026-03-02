@@ -3,92 +3,111 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Hızlı Köprü v7.0.4</title>
+    <title>Hızlı Köprü Mobil v6.9.7</title>
     <style>
         body { font-family: sans-serif; background: #121212; color: white; text-align: center; padding: 15px; }
         .card { background: #1e1e1e; border-radius: 20px; padding: 25px; max-width: 400px; margin: auto; border: 1px solid #333; }
-        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 80px; border: 1px dashed #00bcd4; overflow: hidden; }
-        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; width: 100%; margin-top: 10px; cursor: pointer; }
-        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 10px; box-sizing: border-box; }
-        .status { font-size: 12px; color: #00bcd4; margin-top: 10px; }
+        .room-tag { color: #00bcd4; font-weight: bold; margin-bottom: 20px; display: block; font-size: 20px; }
+        #display-area { background: #2a2a2a; padding: 20px; border-radius: 12px; margin: 15px 0; min-height: 100px; border: 1px dashed #444; }
+        #receivedImage { max-width: 100%; display: none; border-radius: 10px; margin-top: 10px; }
+        #file-zone { display: none; margin-top: 12px; }
+        .btn { border: none; padding: 15px; border-radius: 12px; color: white; font-weight: bold; cursor: pointer; width: 100%; margin-top: 12px; font-size: 16px; }
+        textarea { width: 100%; height: 100px; background: #333; color: white; border: 1px solid #444; border-radius: 12px; padding: 12px; box-sizing: border-box; }
+        #status { font-size: 13px; color: #00bcd4; margin-top: 12px; height: 20px; }
     </style>
 </head>
 <body>
     <div class="card">
-        <h3 id="room-tag">BAĞLANIYOR...</h3>
+        <span id="room-tag" class="room-tag">YÜKLENİYOR...</span>
         <div id="display-area">
-            <div id="output">Veri bekleniyor...</div>
-            <img id="viewImg" style="max-width:100%; display:none; margin-top:10px; border-radius:8px;">
-            <div id="file-link" style="display:none; margin-top:10px;">
-                <a id="dl" style="color:cyan; text-decoration:none; font-weight:bold;">📥 DOSYAYI İNDİR</a>
+            <div id="text-content">PC'den veri bekleniyor...</div>
+            <img id="receivedImage" src="">
+            <div id="file-zone">
+                <a id="download-link" style="background: #2e7d32; color: white; padding: 12px; display: block; border-radius: 8px; text-decoration: none;">📥 DOSYAYI İNDİR</a>
             </div>
         </div>
-        <button class="btn" style="background:#444;" onclick="copyResult()">Kopyala</button>
-        <hr style="border:0; border-top:1px solid #333; margin:20px 0;">
-        <textarea id="inp" placeholder="Mesaj yazın..."></textarea>
-        <button class="btn" style="background:#00bcd4;" onclick="send()">MESAJI GÖNDER</button>
-        <input type="file" id="fi" style="display:none" onchange="upload(this)">
-        <button class="btn" style="background:#c0392b;" onclick="document.getElementById('fi').click()">DOSYA SEÇ</button>
-        <div id="stat" class="status"></div>
+        <button class="btn" style="background: #444;" onclick="handleAction()">Kopyala / Kaydet</button>
+        <hr style="border: 0; border-top: 1px solid #333; margin: 25px 0;">
+        <textarea id="mobileInput" placeholder="Mesajınızı yazın..."></textarea>
+        <button class="btn" style="background: #00bcd4;" onclick="sendText()">📝 Metni Gönder</button>
+        <input type="file" id="fileInput" style="display:none" onchange="uploadFile(this)">
+        <button class="btn" style="background: #c0392b;" onclick="document.getElementById('fileInput').click()">📁 Dosya/Foto Seç</button>
+        <div id="status"></div>
     </div>
 
     <script>
+        // --- AKILLI ODA BAĞLANTISI ---
         const urlParams = new URLSearchParams(window.location.search);
-        let roomID = urlParams.get('room') || prompt("Oda:");
+        let roomID = urlParams.get('room'); // QR'dan gelen oda bilgisini al
+
+        // Eğer QR'da oda bilgisi yoksa elle sor
+        if (!roomID) {
+            roomID = prompt("Oda İsmi Girin:", "genel") || "genel";
+        }
+
         roomID = roomID.toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}/data.json`;
-        let lastId = "";
-        document.getElementById('room-tag').innerText = "ODA: " + roomID.toUpperCase();
+        const dbUrl = `https://hizlikopru-default-rtdb.europe-west1.firebasedatabase.app/${roomID}.json`;
+        let lastHash = "";
+        document.getElementById('room-tag').innerText = `ODA: ${roomID.toUpperCase()}`;
 
-        function sync() {
-            fetch(`${dbUrl}?limitToLast=1&t=${Date.now()}`)
-            .then(r => r.json()).then(data => {
+        function fetchData() {
+            fetch(`${dbUrl}?nocache=${Date.now()}`).then(res => res.json()).then(data => {
                 if (!data) return;
-                let id = Object.keys(data)[0];
-                if (id !== lastId) {
-                    lastId = id;
-                    let val = data[id];
-                    if (val.sender === 'PC') update(val);
+                const currentHash = btoa(unescape(encodeURIComponent(data.content))).substring(0, 64);
+                if (data.sender === 'WEB' || currentHash === lastHash) return;
+                lastHash = currentHash;
+                
+                document.getElementById('text-content').style.display = 'none';
+                document.getElementById('receivedImage').style.display = 'none';
+                document.getElementById('file-zone').style.display = 'none';
+
+                if (data.type === 'image') {
+                    document.getElementById('receivedImage').src = data.content;
+                    document.getElementById('receivedImage').style.display = 'block';
+                } else if (data.type === 'file') {
+                    const link = document.getElementById('download-link');
+                    link.href = data.content;
+                    link.download = data.filename || "dosya";
+                    document.getElementById('file-zone').style.display = 'block';
+                } else {
+                    document.getElementById('text-content').innerText = data.content;
+                    document.getElementById('text-content').style.display = 'block';
                 }
-            });
+            }).catch(() => {});
         }
 
-        function update(data) {
-            const out = document.getElementById('output');
-            const img = document.getElementById('viewImg');
-            const fl = document.getElementById('file-link');
-            out.style.display = 'none'; img.style.display = 'none'; fl.style.display = 'none';
-
-            if (data.type === 'image') { img.src = data.content; img.style.display = 'block'; }
-            else if (data.type === 'file') {
-                document.getElementById('dl').href = data.content;
-                document.getElementById('dl').download = data.filename;
-                fl.style.display = 'block'; out.innerText = data.filename; out.style.display = 'block';
-            } else { out.innerText = data.content; out.style.display = 'block'; }
-            document.getElementById('stat').innerText = "Yeni veri alındı!";
+        function sendText() {
+            const val = document.getElementById('mobileInput').value;
+            if(!val) return;
+            lastHash = btoa(unescape(encodeURIComponent(val))).substring(0, 64);
+            fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: val, timestamp: Date.now()/1000, type: 'text', sender: 'WEB' }) })
+                .then(() => { document.getElementById('mobileInput').value = ""; showStatus("Gönderildi!"); });
         }
 
-        function send() {
-            const v = document.getElementById('inp').value;
-            if(!v) return;
-            fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: v, sender: 'WEB', type: 'text', timestamp: Date.now() }) })
-            .then(() => { document.getElementById('inp').value = ""; document.getElementById('stat').innerText = "Gönderildi!"; });
-        }
-
-        function upload(input) {
+        function uploadFile(input) {
+            const file = input.files[0];
+            if(!file) return;
             const reader = new FileReader();
-            reader.onload = (e) => {
-                fetch(dbUrl, { method: 'POST', body: JSON.stringify({ content: e.target.result, filename: input.files[0].name, sender: 'WEB', type: 'file', timestamp: Date.now() }) });
+            reader.onload = function(e) {
+                lastHash = btoa(unescape(encodeURIComponent(e.target.result))).substring(0, 64);
+                fetch(dbUrl, { method: 'PUT', body: JSON.stringify({ content: e.target.result, filename: file.name, timestamp: Date.now()/1000, type: file.type.startsWith('image/') ? 'image' : 'file', sender: 'WEB' }) })
+                    .then(() => showStatus("Dosya İletildi!"));
             };
-            reader.readAsDataURL(input.files[0]);
+            reader.readAsDataURL(file);
         }
 
-        function copyResult() {
-            navigator.clipboard.writeText(document.getElementById('output').innerText);
-            document.getElementById('stat').innerText = "Kopyalandı!";
+        function handleAction() {
+            const txt = document.getElementById('text-content').innerText;
+            if(document.getElementById('text-content').style.display !== 'none' && txt !== "PC'den veri bekleniyor...") {
+                navigator.clipboard.writeText(txt); showStatus("Kopyalandı!");
+            } else if (document.getElementById('file-zone').style.display !== 'none') {
+                document.getElementById('download-link').click();
+            }
         }
 
-        setInterval(sync, 2000);
+        function showStatus(m) { document.getElementById('status').innerText = m; setTimeout(() => document.getElementById('status').innerText="", 3000); }
+        setInterval(fetchData, 2000);
+        fetchData();
     </script>
 </body>
 </html>
